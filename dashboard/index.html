@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Smart Pest Trap — Dashboard</title>
+<style>
+  :root {
+    --bg:#070b12; --panel:rgba(255,255,255,.04); --panel-solid:#0f1622;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+    --text:#eef2f7; --muted:#8fa0b5;
+    --red:#fb7185; --green:#4ade80; --blue:#60a5fa; --amber:#fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); overflow-x: hidden;
+         font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans Sinhala", "Noto Sans Tamil", sans-serif; }
+
+  /* ambient aurora background */
+  body::before, body::after { content:""; position: fixed; z-index:-1; border-radius:50%;
+    filter: blur(110px); opacity:.2; pointer-events:none; }
+  body::before { width:560px; height:560px; background:#22c55e; top:-160px; left:-140px;
+    animation: drift1 16s ease-in-out infinite alternate; }
+  body::after { width:640px; height:640px; background:#2563eb; bottom:-220px; right:-180px;
+    animation: drift2 22s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(90px, 70px) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(-100px, -80px) scale(1.1); } }
+
+  @keyframes riseIn { from { opacity:0; transform: translateY(18px); } to { opacity:1; transform:none; } }
+  @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.8); } }
+  @keyframes shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes kenburns { from { transform: scale(1) translate(0,0); } to { transform: scale(1.12) translate(2%, -2%); } }
+  @keyframes scanline { from { top: -2px; } to { top: 100%; } }
+  @keyframes rowIn { from { opacity:0; transform: translateY(-10px); } to { opacity:1; transform:none; } }
+  @keyframes toastIn { from { opacity:0; transform: translateY(14px) scale(.96); } to { opacity:1; transform:none; } }
+  @keyframes chatPop { from { opacity:0; transform: translateY(18px) scale(.95); } to { opacity:1; transform:none; } }
+  @keyframes ringPulse { 0% { transform: scale(1); opacity:.6; } 100% { transform: scale(1.5); opacity:0; } }
+  @keyframes wiggle { 0%,100% { transform:rotate(0); } 25% { transform:rotate(-4deg); } 75% { transform:rotate(4deg); } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .rise { animation: riseIn .6s cubic-bezier(.22,1,.36,1) backwards; }
+
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.24); }
+
+  /* ---------------- header ---------------- */
+  header { position: sticky; top:0; z-index:40; display:flex; align-items:center; gap:14px;
+           padding:14px 28px; background: rgba(9,13,20,.72); backdrop-filter: blur(16px);
+           -webkit-backdrop-filter: blur(16px); border-bottom:1px solid var(--line); }
+  .logo { width:44px; height:44px; border-radius:13px; font-size:22px;
+          display:flex; align-items:center; justify-content:center;
+          background: linear-gradient(135deg, rgba(74,222,128,.2), rgba(96,165,250,.2));
+          border:1px solid rgba(74,222,128,.35);
+          box-shadow: 0 0 22px rgba(74,222,128,.18); animation: floaty 4s ease-in-out infinite; }
+  header h1 { font-size:19px; font-weight:700; letter-spacing:.3px;
+              background: linear-gradient(90deg, #7ef29c, #4dd6ff);
+              -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header .sub { color: var(--muted); font-size:12px; margin-top:2px; }
+  .status { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:12px;
+            color: var(--muted); background: rgba(255,255,255,.05); border:1px solid var(--line);
+            padding:6px 14px; border-radius:999px; }
+  .dot { width:9px; height:9px; border-radius:50%; background: var(--green);
+         box-shadow: 0 0 8px var(--green); animation: pulse 2s ease-in-out infinite; }
+  .dot.off { background: var(--red); box-shadow: 0 0 8px var(--red); animation:none; }
+  .lang { display:flex; gap:4px; margin-left:12px; background: rgba(255,255,255,.05);
+          border:1px solid var(--line); border-radius:11px; padding:4px; }
+  .langbtn { cursor:pointer; border:none; background:transparent; color: var(--muted);
+             border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600;
+             transition: all .2s; }
+  .langbtn:hover { color: var(--text); }
+  .langbtn.active { color:#fff; background: linear-gradient(135deg,#38bdf8,#2563eb);
+                    box-shadow: 0 2px 12px rgba(59,130,246,.4); }
+
+  /* ---------------- layout ---------------- */
+  main { max-width: 1200px; margin: 0 auto; padding: 26px 24px; }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+           gap:16px; margin-bottom:24px; }
+  .card { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:16px;
+          padding:18px 20px; background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.015));
+          backdrop-filter: blur(8px); transition: transform .25s, box-shadow .25s, border-color .25s; }
+  .card::after { content:""; position:absolute; top:-46px; right:-46px; width:130px; height:130px;
+                 border-radius:50%; background: radial-gradient(circle, var(--glow, #60a5fa), transparent 70%);
+                 opacity:.16; transition: opacity .3s; pointer-events:none; }
+  .card:hover { transform: translateY(-5px); border-color: var(--line2);
+                box-shadow: 0 14px 34px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.04); }
+  .card:hover::after { opacity:.3; }
+  .cards .card:nth-child(1) { animation-delay:.05s; } .cards .card:nth-child(2) { animation-delay:.12s; }
+  .cards .card:nth-child(3) { animation-delay:.19s; } .cards .card:nth-child(4) { animation-delay:.26s; }
+  .card .ic { width:38px; height:38px; border-radius:12px; font-size:18px; margin-bottom:12px;
+              display:flex; align-items:center; justify-content:center;
+              background: rgba(255,255,255,.07); border:1px solid var(--line); }
+  .card .k { color: var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:1.2px; font-weight:600; }
+  .card .v { font-size:34px; font-weight:800; margin-top:6px; font-variant-numeric: tabular-nums;
+             text-shadow: 0 0 24px rgba(255,255,255,.08); }
+  .card.c-total { --glow:#60a5fa; } .card.c-total .v { color:#a5c8ff; }
+  .card.c-harmful { --glow:#fb7185; } .card.c-harmful .v { color: var(--red); }
+  .card.c-beneficial { --glow:#4ade80; } .card.c-beneficial .v { color: var(--green); }
+  .card.c-act { --glow:#fbbf24; } .card.c-act .v { color: var(--amber); }
+
+  .duo { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:24px; }
+  @media (max-width: 920px) { .duo { grid-template-columns: 1fr; } .hero { grid-template-columns:1fr !important; }
+                              .hero .photo { width:100% !important; } }
+  .panel { background: linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.012));
+           backdrop-filter: blur(8px); border:1px solid var(--line); border-radius:16px;
+           padding:20px; margin-bottom:24px; transition: border-color .3s, box-shadow .3s; }
+  .panel:hover { border-color: var(--line2); }
+  .duo .panel { margin-bottom:0; }
+  .panel h2 { font-size:12px; color: var(--muted); text-transform:uppercase;
+              letter-spacing:1.4px; margin-bottom:16px; font-weight:700; }
+  .phead { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; }
+  .phead h2 { margin-bottom:0; }
+
+  /* ---------------- camera ---------------- */
+  .camwrap { position:relative; border-radius:14px; overflow:hidden; border:1px solid var(--line);
+             background:#000; aspect-ratio: 16/10; box-shadow: inset 0 0 40px rgba(0,0,0,.5); }
+  .camwrap img { display:block; width:100%; height:100%; object-fit:cover; }
+  .camwrap.scan::after { content:""; position:absolute; left:0; right:0; height:2px;
+    background: linear-gradient(90deg, transparent, #4ade80, transparent);
+    box-shadow: 0 0 14px #4ade80; animation: scanline 2.6s linear infinite; }
+  .camchip { position:absolute; top:12px; left:12px; padding:5px 12px; border-radius:999px;
+             font-size:11px; font-weight:700; letter-spacing:.4px;
+             background: rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.18);
+             backdrop-filter: blur(6px); display:flex; align-items:center; gap:7px; }
+  .camchip .live { width:8px; height:8px; border-radius:50%; background: var(--red);
+                   box-shadow: 0 0 8px var(--red); animation: pulse 1.2s infinite; }
+  .camidle { position:absolute; inset:0; display:flex; flex-direction:column; gap:12px;
+             align-items:center; justify-content:center; text-align:center; padding:0 26px;
+             color: var(--muted); font-size:13.5px;
+             background:
+               radial-gradient(circle at 50% 42%, rgba(96,165,250,.1), transparent 62%),
+               repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 2px, transparent 2px 10px); }
+  .camidle .cic { font-size:40px; animation: floaty 3.5s ease-in-out infinite; }
+  .camctl { display:flex; gap:10px; margin-top:16px; align-items:center; flex-wrap:wrap; }
+  .camstatus { font-size:12px; color: var(--muted); }
+
+  button { cursor:pointer; border:1px solid var(--line); border-radius:11px; padding:10px 18px;
+           font-size:13px; font-weight:600; font-family:inherit; color: var(--text);
+           background: rgba(255,255,255,.06);
+           transition: transform .18s, box-shadow .18s, filter .18s, border-color .18s; }
+  button:hover { transform: translateY(-2px); filter: brightness(1.15); border-color: var(--line2); }
+  button:active { transform: translateY(0) scale(.97); }
+  button.primary { background: linear-gradient(135deg,#22c55e,#15803d); border-color:transparent;
+                   color:#fff; box-shadow: 0 4px 18px rgba(34,197,94,.28); }
+  button.danger { background: linear-gradient(135deg,#f43f5e,#be123c); border-color:transparent;
+                  color:#fff; box-shadow: 0 4px 18px rgba(244,63,94,.28); }
+  button.accent { background: linear-gradient(135deg,#38bdf8,#2563eb); border-color:transparent;
+                  color:#fff; box-shadow: 0 4px 18px rgba(59,130,246,.3); }
+  button:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; filter:none; }
+
+  /* ---------------- upload ---------------- */
+  .drop { border:2px dashed rgba(255,255,255,.18); border-radius:14px; padding:30px 20px;
+          text-align:center; color: var(--muted); font-size:13px; cursor:pointer;
+          transition: all .25s; background: rgba(255,255,255,.02); }
+  .drop.over, .drop:hover { border-color: var(--blue); color: var(--text);
+                            background: rgba(96,165,250,.06); box-shadow: 0 0 30px rgba(96,165,250,.12); }
+  .drop .big { font-size:34px; display:block; margin-bottom:8px; transition: transform .3s; }
+  .drop:hover .big { transform: scale(1.15) rotate(-4deg); }
+  .upresult { margin-top:16px; display:none; }
+  .upresult.show { display:block; animation: riseIn .45s cubic-bezier(.22,1,.36,1); }
+  .upgrid { display:grid; grid-template-columns: 128px 1fr; gap:16px; align-items:start; }
+  .upgrid img { width:128px; height:96px; object-fit:cover; border-radius:12px;
+                border:1px solid var(--line2); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .uplabel { font-size:19px; font-weight:700; margin-bottom:8px; }
+  .upnote { margin-top:12px; font-size:12.5px; color: var(--muted); }
+  .upnote.warn { color: var(--amber); font-weight:600; }
+
+  .badge { display:inline-block; padding:4px 13px; border-radius:999px; font-size:12px;
+           font-weight:700; letter-spacing:.5px; }
+  .badge.Harmful { background: rgba(251,113,133,.14); color: var(--red); border:1px solid rgba(251,113,133,.5); }
+  .badge.Beneficial { background: rgba(74,222,128,.12); color: var(--green); border:1px solid rgba(74,222,128,.5); }
+  .badge.Harmless { background: rgba(96,165,250,.12); color: var(--blue); border:1px solid rgba(96,165,250,.5); }
+  .badge.acted { background: rgba(251,191,36,.14); color: var(--amber);
+                 border:1px solid rgba(251,191,36,.5); margin-left:8px; }
+  .badge.src { background: rgba(255,255,255,.06); color: var(--muted);
+               border:1px solid var(--line); margin-left:6px; font-size:10px; }
+  .confbar { height:9px; background: rgba(255,255,255,.06); border-radius:6px;
+             margin:16px 0 8px; overflow:hidden; }
+  .confbar > div { position:relative; height:100%; border-radius:6px; width:0%;
+                   background: linear-gradient(90deg, var(--blue), var(--green));
+                   transition: width .9s cubic-bezier(.22,1,.36,1); }
+  .confbar > div::after { content:""; position:absolute; inset:0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.4) 50%, transparent 70%);
+    background-size: 200% 100%; animation: shine 2.6s linear infinite; }
+  .meta { color: var(--muted); font-size:12px; margin-top:8px; }
+  .top3 { margin-top:12px; font-size:13px; color: var(--muted); }
+  .top3 code { color: var(--text); background: rgba(255,255,255,.07); border:1px solid var(--line);
+               padding:3px 9px; border-radius:7px; margin-right:8px; font-size:12px; }
+
+  /* ---------------- hero ---------------- */
+  .hero { display:grid; grid-template-columns: 340px 1fr; gap:20px; border-radius:16px;
+          padding:20px; margin-bottom:24px; border:1px solid transparent;
+          background: linear-gradient(160deg, rgba(15,22,34,.9), rgba(15,22,34,.6)) padding-box,
+                      linear-gradient(120deg, rgba(74,222,128,.5), rgba(96,165,250,.15) 40%, rgba(251,113,133,.4)) border-box; }
+  .hero .photo { position:relative; width:340px; height:230px; border-radius:14px; overflow:hidden;
+                 background: var(--panel-solid); border:1px solid var(--line);
+                 display:flex; align-items:center; justify-content:center;
+                 color: var(--muted); font-size:13px; }
+  .hero .photo img { width:100%; height:100%; object-fit:cover;
+                     animation: kenburns 18s ease-in-out infinite alternate; }
+  .hero h2 { font-size:12px; color: var(--muted); text-transform:uppercase;
+             letter-spacing:1.4px; margin-bottom:12px; font-weight:700; }
+  .hero .label { font-size:28px; font-weight:800; margin-bottom:12px; }
+
+  /* ---------------- distribution ---------------- */
+  .dist .row { display:grid; grid-template-columns: 110px 1fr 48px; gap:12px;
+               align-items:center; margin-bottom:12px; font-size:13px; }
+  .dist .bar { height:13px; background: rgba(255,255,255,.06); border-radius:7px; overflow:hidden; }
+  .dist .bar > div { position:relative; height:100%; border-radius:7px;
+                     transition: width 1s cubic-bezier(.22,1,.36,1); }
+  .dist .bar > div::after { content:""; position:absolute; inset:0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+    background-size: 200% 100%; animation: shine 3s linear infinite; }
+  .dist .cnt { text-align:right; color: var(--muted); font-variant-numeric: tabular-nums; font-weight:700; }
+
+  /* ---------------- table ---------------- */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color: var(--muted); font-weight:600; padding:10px;
+       border-bottom:1px solid var(--line); font-size:11.5px;
+       text-transform:uppercase; letter-spacing:1px; }
+  td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,.05); vertical-align:middle; }
+  tbody tr { transition: background .2s; }
+  tbody tr:hover { background: rgba(255,255,255,.04); }
+  tr.acted td { background: rgba(251,191,36,.05); }
+  tr.sel td { background: rgba(96,165,250,.09); }
+  tr.new { animation: rowIn .5s cubic-bezier(.22,1,.36,1) backwards; }
+  .thumb { width:54px; height:40px; object-fit:cover; border-radius:8px;
+           border:1px solid var(--line); background: rgba(255,255,255,.05);
+           transition: transform .25s, box-shadow .25s; }
+  tbody tr:hover .thumb { transform: scale(1.12); box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .empty { color: var(--muted); text-align:center; padding:44px 0; font-size:14px; }
+  .delbtn { padding:5px 11px; font-size:13px; border-radius:9px; background: rgba(255,255,255,.05);
+            border:1px solid var(--line); color: var(--muted); }
+  .delbtn:hover { color:#fff; background: rgba(244,63,94,.2); border-color: rgba(244,63,94,.6);
+                  box-shadow: 0 0 14px rgba(244,63,94,.25); }
+  .delbtn.confirm { background: linear-gradient(135deg,#f43f5e,#be123c); color:#fff;
+                    border-color:transparent; font-size:12px; animation: wiggle .3s; }
+  #btn-clear { background: rgba(244,63,94,.08); border:1px solid rgba(244,63,94,.4);
+               color: var(--red); padding:7px 14px; font-size:12px; }
+  #btn-clear:hover { background: rgba(244,63,94,.18); box-shadow: 0 0 16px rgba(244,63,94,.2); }
+  #btn-clear.confirm { background: linear-gradient(135deg,#f43f5e,#be123c); color:#fff;
+                       border-color:transparent; animation: wiggle .3s; }
+  .clrgrp { display:flex; gap:8px; }
+  #btn-clear-sel { background: rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.4);
+                   color: var(--amber); padding:7px 14px; font-size:12px; }
+  #btn-clear-sel:hover { background: rgba(251,191,36,.16); box-shadow: 0 0 16px rgba(251,191,36,.18); }
+  #btn-clear-sel.confirm { background: linear-gradient(135deg,#f43f5e,#be123c); color:#fff;
+                           border-color:transparent; animation: wiggle .3s; }
+  .rowchk, #chk-all { width:15px; height:15px; cursor:pointer; accent-color:#60a5fa; }
+  th.chk { width:34px; }
+
+  footer { text-align:center; color: var(--muted); font-size:12px; padding:14px 0 34px; }
+
+  /* ---------------- toasts ---------------- */
+  #toasts { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:70;
+            display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
+  .toast { padding:11px 20px; border-radius:12px; font-size:13px; font-weight:600;
+           background: rgba(15,22,36,.94); border:1px solid var(--line2);
+           backdrop-filter: blur(10px); box-shadow: 0 12px 34px rgba(0,0,0,.5);
+           animation: toastIn .3s cubic-bezier(.22,1,.36,1); transition: opacity .3s, transform .3s; }
+  .toast.ok { border-color: rgba(74,222,128,.55); color: var(--green); }
+  .toast.err { border-color: rgba(251,113,133,.55); color: var(--red); }
+  .toast.out { opacity:0; transform: translateY(10px); }
+
+  /* ---------------- chat assistant ---------------- */
+  #chat-fab { position:fixed; right:24px; bottom:24px; width:58px; height:58px; border-radius:50%;
+              border:none; background: linear-gradient(135deg,#34d399,#059669); color:#fff;
+              font-size:26px; cursor:pointer; box-shadow: 0 8px 24px rgba(16,185,129,.4);
+              z-index:50; display:flex; align-items:center; justify-content:center;
+              transition: transform .2s; }
+  #chat-fab::before { content:""; position:absolute; inset:-7px; border-radius:50%;
+                      border:2px solid rgba(52,211,153,.45); animation: ringPulse 2.4s ease-out infinite; }
+  #chat-fab:hover { transform: scale(1.08) rotate(6deg); }
+  #chat-win { position:fixed; right:24px; bottom:96px; width:370px; max-width:calc(100vw - 48px);
+              height:470px; max-height:70vh; background: rgba(15,22,36,.96);
+              backdrop-filter: blur(18px); border:1px solid var(--line2); border-radius:18px;
+              display:none; flex-direction:column; overflow:hidden; z-index:51;
+              box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+  #chat-win.open { display:flex; animation: chatPop .3s cubic-bezier(.22,1,.36,1); }
+  #chat-win .chead { padding:14px 16px; border-bottom:1px solid var(--line);
+                     display:flex; align-items:center; gap:10px;
+                     background: linear-gradient(120deg, rgba(52,211,153,.12), transparent); }
+  #chat-win .chead .t { font-weight:700; font-size:14px; }
+  #chat-win .chead .s { font-size:11px; color: var(--muted); }
+  #chat-win .chead .x { margin-left:auto; background:none; border:none; color: var(--muted);
+                        font-size:16px; cursor:pointer; padding:2px 8px; }
+  #chat-msgs { flex:1; overflow-y:auto; padding:14px; display:flex;
+               flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:9px 13px; border-radius:13px; font-size:13px;
+         line-height:1.5; white-space:pre-wrap; animation: riseIn .25s ease; }
+  .msg.bot { background: rgba(255,255,255,.06); border:1px solid var(--line);
+             align-self:flex-start; border-bottom-left-radius:4px; }
+  .msg.user { background: rgba(74,222,128,.14); border:1px solid rgba(74,222,128,.45);
+              align-self:flex-end; border-bottom-right-radius:4px; }
+  #chat-chips { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 10px; }
+  #chat-chips button { font-size:11px; padding:5px 11px; border-radius:999px;
+                       background: rgba(255,255,255,.05); border:1px solid var(--line);
+                       color: var(--muted); cursor:pointer; }
+  #chat-chips button:hover { color: var(--text); border-color: var(--blue);
+                             box-shadow: 0 0 12px rgba(96,165,250,.2); }
+  #chat-inrow { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  #chat-in { flex:1; background: rgba(255,255,255,.06); border:1px solid var(--line);
+             border-radius:10px; color: var(--text); padding:10px 13px; font-size:13px;
+             outline:none; font-family:inherit; transition: border-color .2s, box-shadow .2s; }
+  #chat-in:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(74,222,128,.12); }
+  #chat-send { background: linear-gradient(135deg,#34d399,#059669); border:none; color:#fff;
+               font-weight:700; border-radius:10px; padding:0 18px; cursor:pointer; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">&#128375;</div>
+  <div>
+    <h1>AI Smart Pest Trap</h1>
+    <div class="sub" data-i18n="subtitle">Detect &rarr; Classify &rarr; Decide &rarr; Act</div>
+  </div>
+  <div class="status"><span class="dot" id="conn-dot"></span><span id="conn-text">Connecting…</span></div>
+  <div class="lang">
+    <button class="langbtn" data-lang="en">EN</button>
+    <button class="langbtn" data-lang="si">&#3523;&#3538;&#3458;</button>
+    <button class="langbtn" data-lang="ta">&#2980;</button>
+  </div>
+</header>
+
+<main>
+  <div class="cards">
+    <div class="card c-total rise"><div class="ic">&#128202;</div><div class="k" data-i18n="card_total">Total detections</div><div class="v" id="stat-total">0</div></div>
+    <div class="card c-harmful rise"><div class="ic">&#128027;</div><div class="k" data-i18n="card_harmful">Harmful pests</div><div class="v" id="stat-harmful">0</div></div>
+    <div class="card c-beneficial rise"><div class="ic">&#128030;</div><div class="k" data-i18n="card_beneficial">Beneficial insects</div><div class="v" id="stat-beneficial">0</div></div>
+    <div class="card c-act rise"><div class="ic">&#9889;</div><div class="k" data-i18n="card_activations">Trap activations</div><div class="v" id="stat-activations">0</div></div>
+  </div>
+
+  <div class="duo">
+    <div class="panel rise" style="animation-delay:.15s">
+      <h2 data-i18n="panel_cam">Live camera</h2>
+      <div class="camwrap" id="camwrap">
+        <img id="cam" alt="live camera" style="display:none">
+        <span class="camchip" id="camchip" style="display:none"><span class="live"></span><span id="cam-src">&mdash;</span></span>
+        <div class="camidle" id="camidle">
+          <span class="cic">&#127909;</span>
+          <span data-i18n="cam_idle">Camera idle &mdash; press &ldquo;Open camera&rdquo; to preview</span>
+        </div>
+      </div>
+      <div class="camctl">
+        <button id="btn-open-cam" class="accent" data-i18n="btn_open_camera">Open camera</button>
+        <button id="btn-capture" disabled data-i18n="btn_capture">Capture &amp; analyse</button>
+        <button id="btn-start" class="primary" data-i18n="btn_start">&#9654; Start detection</button>
+        <button id="btn-stop" class="danger" disabled data-i18n="btn_stop">&#9632; Stop</button>
+        <span class="camstatus" id="pipe-status">detection idle</span>
+      </div>
+    </div>
+
+    <div class="panel rise" style="animation-delay:.22s">
+      <h2 data-i18n="panel_upload">Analyse a photo</h2>
+      <div class="drop" id="drop">
+        <span class="big">&#128247;</span>
+        <span data-i18n="drop_text">Drop an insect or animal photo here, or click to choose a file</span>
+        <input type="file" id="file" accept="image/*" hidden>
+      </div>
+      <div class="upnote" data-i18n="subject_hint">Only clear insect or non-human animal photos are analysed.</div>
+      <div class="upresult" id="upresult">
+        <div class="upgrid">
+          <img id="up-img" alt="analysed">
+          <div>
+            <div class="uplabel" id="up-label">—</div>
+            <span class="badge Harmless" id="up-badge">—</span>
+            <div class="confbar"><div id="up-conf"></div></div>
+            <div class="meta" id="up-conf-text"></div>
+          </div>
+        </div>
+        <div class="top3" id="up-top3"></div>
+        <div class="upnote" id="up-note"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero rise" style="animation-delay:.28s">
+    <div class="photo">
+      <img id="hero-img" alt="" style="display:none">
+      <span id="hero-ph" data-i18n="hero_ph">Waiting for first detection…</span>
+    </div>
+    <div>
+      <h2 data-i18n="hero_title">Latest detection</h2>
+      <div class="label" id="hero-label">—</div>
+      <div>
+        <span class="badge Harmless" id="hero-badge">—</span>
+        <span class="badge acted" id="hero-acted" style="display:none" data-i18n="hero_acted">&#9889; TRAP ACTIVATED</span>
+      </div>
+      <div class="confbar"><div id="hero-conf"></div></div>
+      <div class="meta" id="hero-conf-text">confidence —</div>
+      <div class="meta" id="hero-time"></div>
+      <div class="top3" id="hero-top3"></div>
+    </div>
+  </div>
+
+  <div class="panel dist rise" style="animation-delay:.34s">
+    <h2 data-i18n="dist_title">Category distribution</h2>
+    <div class="row"><span data-i18n="dist_harmful">Harmful</span><div class="bar"><div id="bar-harmful" style="background:linear-gradient(90deg,#fb7185,#e11d48)"></div></div><span class="cnt" id="cnt-harmful">0</span></div>
+    <div class="row"><span data-i18n="dist_beneficial">Beneficial</span><div class="bar"><div id="bar-beneficial" style="background:linear-gradient(90deg,#4ade80,#16a34a)"></div></div><span class="cnt" id="cnt-beneficial">0</span></div>
+    <div class="row"><span data-i18n="dist_harmless">Harmless</span><div class="bar"><div id="bar-harmless" style="background:linear-gradient(90deg,#60a5fa,#2563eb)"></div></div><span class="cnt" id="cnt-harmless">0</span></div>
+  </div>
+
+  <div class="panel rise" style="animation-delay:.4s">
+    <div class="phead">
+      <h2 data-i18n="table_title">Recent detections</h2>
+      <div class="clrgrp">
+        <button id="btn-clear-sel" disabled>Clear selected (0)</button>
+        <button id="btn-clear" data-i18n="clear_all">Clear all</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th class="chk"><input type="checkbox" id="chk-all" aria-label="Select all"></th><th></th><th data-i18n="th_time">Time (UTC)</th><th data-i18n="th_label">Label</th><th data-i18n="th_category">Category</th><th data-i18n="th_conf">Confidence</th><th data-i18n="th_trap">Trap</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" data-i18n="empty_text">No detections yet — press “Start detection” or upload a photo</div>
+  </div>
+</main>
+
+<button id="chat-fab" title="Ask the assistant" aria-label="Open chat">&#128172;</button>
+<div id="chat-win" role="dialog" aria-label="Pest assistant">
+  <div class="chead">
+    <span style="font-size:20px">&#129302;</span>
+    <div>
+      <div class="t" data-i18n="chat_title">Pest Assistant</div>
+      <div class="s" data-i18n="chat_sub">on-device &middot; knows your live trap data</div>
+    </div>
+    <button class="x" id="chat-close" aria-label="Close chat">&#10005;</button>
+  </div>
+  <div id="chat-msgs"></div>
+  <div id="chat-chips">
+    <button data-q="How many harmful pests?">How many harmful pests?</button>
+    <button data-q="What's the latest detection?">Latest detection?</button>
+    <button data-q="Is a ladybug good or bad?">Is a ladybug good?</button>
+    <button data-q="How does the trap work?">How does it work?</button>
+  </div>
+  <div id="chat-inrow">
+    <input id="chat-in" type="text" placeholder="Ask about pests or your trap…" data-i18n-ph="chat_placeholder" autocomplete="off">
+    <button id="chat-send" data-i18n="chat_send">Send</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<footer data-i18n="footer">AI Smart Pest Trap prototype &middot; MobileNetV2 stand-in model &middot; detections also logged to logs/detections.csv</footer>
+
+<script>
+/* ================= i18n ================= */
+const I18N = {
+  en: {
+    subtitle:"Detect → Classify → Decide → Act", card_total:"Total detections",
+    card_harmful:"Harmful pests", card_beneficial:"Beneficial insects", card_activations:"Trap activations",
+    panel_cam:"Live camera", btn_open_camera:"Open camera", btn_capture:"Capture & analyse", btn_start:"▶ Start detection", btn_stop:"■ Stop",
+    panel_upload:"Analyse a photo",
+    drop_text:"Drop an insect or animal photo here, or click to choose a file",
+    subject_hint:"Only clear insect or non-human animal photos are analysed.",
+    hero_title:"Latest detection", hero_acted:"⚡ TRAP ACTIVATED", hero_ph:"Waiting for first detection…",
+    dist_title:"Category distribution", dist_harmful:"Harmful", dist_beneficial:"Beneficial", dist_harmless:"Harmless",
+    table_title:"Recent detections", th_time:"Time (UTC)", th_label:"Label", th_category:"Category", th_conf:"Confidence", th_trap:"Trap",
+    empty_text:"No detections yet — press “Start detection” or upload a photo",
+    chat_title:"Pest Assistant", chat_sub:"on-device · knows your live trap data",
+    chat_placeholder:"Ask about pests or your trap…", chat_send:"Send",
+    footer:"AI Smart Pest Trap prototype · MobileNetV2 stand-in model · detections also logged to logs/detections.csv",
+    conn_live:"Live", conn_connecting:"Connecting…", conn_off:"Server unreachable",
+    src_webcam:"webcam · live", src_picam:"Pi camera · live", src_demo:"simulated feed", src_demo_fallback:"simulated feed · camera unavailable", src_none:"no camera",
+    src_upload:"upload", src_cam:"cam",
+    pipe_running:"detection running · every {s}s", pipe_idle:"detection idle", cam_ready:"camera ready — press Start detection", cam_error:"camera unavailable",
+    up_noaction:"No trap action for this photo.", up_warn:"⚠ Harmful pest above threshold — the trap would activate on the live feed.",
+    act:"⚡ Activated", confidence:"confidence {c}%", cap_done:"Captured from live camera.",
+    camera_open_failed:"Could not open camera: {error}", capture_failed:"Could not capture image: {error}",
+    upload_failed:"Could not analyse photo: {error}", subject_rejected:"Photo not analysed",
+    subject_human:"This looks like a person or hand. Use a clear insect or non-human animal photo.",
+    subject_object:"This looks like an object or background. Use a clear insect or non-human animal photo.",
+    subject_unknown:"The subject is unclear. Use a clear insect or non-human animal photo.",
+    try_again:"Please try again! Capture a correct image of an insect.",
+    del:"Remove", del_confirm:"Sure?", deleted:"Detection removed", delete_failed:"Delete failed",
+    clear_all:"Clear all", clear_confirm:"Sure?", cleared:"All detections cleared",
+    clear_sel:"Clear selected ({n})", cleared_sel:"Removed {n} detections",
+    cam_idle:"Camera idle — press “Open camera” to preview"
+  },
+  si: {
+    subtitle:"හඳුනාගන්න → වර්ගීකරණය → තීරණය → ක්‍රියාව", card_total:"මුළු හඳුනාගැනීම්",
+    card_harmful:"හානිකර පළිබෝදු", card_beneficial:"ප්‍රයෝජනවත් කෘමීන්", card_activations:"උගුල ක්‍රියාත්මක වීම්",
+    panel_cam:"සජීවී කැමරාව", btn_open_camera:"කැමරාව අරින්න", btn_capture:"ගන්න සහ විශ්ලේෂණය කරන්න", btn_start:"▶ හඳුනාගැනීම අරඹන්න", btn_stop:"■ නවත්වන්න",
+    panel_upload:"ඡායාරූපයක් විශ්ලේෂණය",
+    drop_text:"කෘමි හෝ සත්ව ඡායාරූපයක් මෙතැනට දමන්න, හෝ ගොනුවක් තෝරන්න",
+    subject_hint:"පැහැදිලි කෘමි හෝ මනුෂ්‍ය නොවන සත්ව ඡායාරූප පමණක් විශ්ලේෂණය කරයි.",
+    hero_title:"අලුත්ම හඳුනාගැනීම", hero_acted:"⚡ උගුල ක්‍රියාත්මක විය", hero_ph:"පළමු හඳුනාගැනීම සඳහා රැඳී සිටිමින්…",
+    dist_title:"කාණ්ඩ ව්‍යාප්තිය", dist_harmful:"හානිකර", dist_beneficial:"ප්‍රයෝජනවත්", dist_harmless:"හානිරහිත",
+    table_title:"මෑත හඳුනාගැනීම්", th_time:"වේලාව (UTC)", th_label:"ලේබලය", th_category:"කාණ්ඩය", th_conf:"විශ්වාසය", th_trap:"උගුල",
+    empty_text:"තවම හඳුනාගැනීම් නැත — “හඳුනාගැනීම අරඹන්න” ඔබන්න හෝ ඡායාරූපයක් උඩුගත කරන්න",
+    chat_title:"පළිබෝ සහායක", chat_sub:"උපාංගය මත · ඔබේ සජීවී උගුල දත්ත දනී",
+    chat_placeholder:"පළිබෝ හෝ ඔබේ උගුල ගැන අහන්න…", chat_send:"යවන්න",
+    footer:"AI ස්මාර්ට් පළිබෝ උගුල · MobileNetV2 ආකෘතිය · හඳුනාගැනීම් logs/detections.csv හි සටහන් වේ",
+    conn_live:"සජීවී", conn_connecting:"සම්බන්ධ වෙමින්…", conn_off:"සේවාදායකයට ළඟා විය නොහැක",
+    src_webcam:"වෙබ්කැම් · සජීවී", src_picam:"Pi කැමරාව · සජීවී", src_demo:"අනුකරණ ප්‍රවාහය", src_demo_fallback:"අනුකරණ ප්‍රවාහය · කැමරාව නොමැත", src_none:"කැමරාවක් නැත",
+    src_upload:"උඩුගත", src_cam:"කැමරා",
+    pipe_running:"හඳුනාගැනීම ක්‍රියාත්මකයි · තත්පර {s} කට වරක්", pipe_idle:"හඳුනාගැනීම නිශ්චලයි", cam_ready:"කැමරාව සූදානම් — හඳුනාගැනීම අරඹන්න ඔබන්න", cam_error:"කැමරාව ලබාගත නොහැක",
+    up_noaction:"මෙම ඡායාරූපය සඳහා උගුල ක්‍රියාත්මක නොවේ.", up_warn:"⚠ සීමාවට ඉහළ හානිකර පළිබෝදුවෙක් — සජීවී ප්‍රවාහයේ උගුල ක්‍රියාත්මක වේ.",
+    act:"⚡ ක්‍රියාත්මක විය", confidence:"විශ්වාසය {c}%", cap_done:"සජීවී කැමරාවෙන් ගත් ඡායාරූපය.",
+    camera_open_failed:"කැමරාව විවෘත කළ නොහැක: {error}", capture_failed:"කැමරා රූපය ගත නොහැක: {error}",
+    upload_failed:"ඡායාරූපය විශ්ලේෂණය කළ නොහැක: {error}", subject_rejected:"ඡායාරූපය විශ්ලේෂණය කළේ නැත",
+    subject_human:"මෙය මනුෂ්‍යයෙකුගේ හෝ අතක ඡායාරූපයක් වැනිය. පැහැදිලි කෘමි හෝ මනුෂ්‍ය නොවන සත්ව ඡායාරූපයක් භාවිතා කරන්න.",
+    subject_object:"මෙය වස්තුවක් හෝ පසුබිමක් වැනිය. පැහැදිලි කෘමි හෝ මනුෂ්‍ය නොවන සත්ව ඡායාරූපයක් භාවිතා කරන්න.",
+    subject_unknown:"විෂය පැහැදිලි නැත. පැහැදිලි කෘමි හෝ මනුෂ්‍ය නොවන සත්ව ඡායාරූපයක් භාවිතා කරන්න.",
+    try_again:"කරුණාකර නැවත උත්සාහ කරන්න! කෘමියෙකුගේ නිවැරදි ඡායාරූපයක් ගන්න.",
+    del:"ඉවත් කරන්න", del_confirm:"විශ්වාසද?", deleted:"හඳුනාගැනීම ඉවත් කරන ලදී", delete_failed:"ඉවත් කිරීම අසාර්ථක විය",
+    clear_all:"සියල්ල මකන්න", clear_confirm:"විශ්වාසද?", cleared:"සියලු හඳුනාගැනීම් මකා දමන ලදී",
+    clear_sel:"තෝරාගත් ({n}) මකන්න", cleared_sel:"හඳුනාගැනීම් {n} ක් ඉවත් කළා",
+    cam_idle:"කැමරාව නිශ්චලයි — පෙරදසුන සඳහා “කැමරාව අරින්න” ඔබන්න"
+  },
+  ta: {
+    subtitle:"கண்டறி → வகைப்படுத்து → முடிவு → செயல்", card_total:"மொத்த கண்டறிதல்கள்",
+    card_harmful:"தீங்கு பூச்சிகள்", card_beneficial:"பயனுள்ள பூச்சிகள்", card_activations:"பொறி செயல்பாடுகள்",
+    panel_cam:"நேரடி கேமரா", btn_open_camera:"கேமராவைத் திற", btn_capture:"பிடித்து பகுப்பாய்வு செய்", btn_start:"▶ கண்டறிதலைத் தொடங்கு", btn_stop:"■ நிறுத்து",
+    panel_upload:"புகைப்படத்தை பகுப்பாய்வு",
+    drop_text:"பூச்சி அல்லது விலங்கு புகைப்படத்தை இங்கே இடவும், அல்லது கோப்பைத் தேர்ந்தெடுக்கவும்",
+    subject_hint:"தெளிவான பூச்சி அல்லது மனிதரல்லாத விலங்கு புகைப்படங்கள் மட்டுமே பகுப்பாய்வு செய்யப்படும்.",
+    hero_title:"சமீபத்திய கண்டறிதல்", hero_acted:"⚡ பொறி செயல்பட்டது", hero_ph:"முதல் கண்டறிதலுக்காக காத்திருக்கிறது…",
+    dist_title:"வகை பரவல்", dist_harmful:"தீங்கு", dist_beneficial:"பயனுள்ள", dist_harmless:"தீங்கற்ற",
+    table_title:"சமீபத்திய கண்டறிதல்கள்", th_time:"நேரம் (UTC)", th_label:"லேபிள்", th_category:"வகை", th_conf:"நம்பிக்கை", th_trap:"பொறி",
+    empty_text:"இன்னும் கண்டறிதல்கள் இல்லை — “கண்டறிதலைத் தொடங்கு” அழுத்தவும் அல்லது புகைப்படத்தை பதிவேற்றவும்",
+    chat_title:"பூச்சி உதவியாளர்", chat_sub:"சாதனத்தில் · உங்கள் நேரடி பொறி தரவை அறியும்",
+    chat_placeholder:"பூச்சிகள் அல்லது பொறி பற்றி கேளுங்கள்…", chat_send:"அனுப்பு",
+    footer:"AI ஸ்மார்ட் பூச்சி பொறி · MobileNetV2 மாடல் · கண்டறிதல்கள் logs/detections.csv இல் பதிவாகும்",
+    conn_live:"நேரடி", conn_connecting:"இணைகிறது…", conn_off:"சேவையகத்தை அடைய முடியவில்லை",
+    src_webcam:"வெப்கேம் · நேரடி", src_picam:"Pi கேமரா · நேரடி", src_demo:"உருவகப்படுத்திய ஊட்டம்", src_demo_fallback:"உருவகப்படுத்திய ஊட்டம் · கேமரா கிடைக்கவில்லை", src_none:"கேமரா இல்லை",
+    src_upload:"பதிவேற்றம்", src_cam:"கேமரா",
+    pipe_running:"கண்டறிதல் இயங்குகிறது · {s} விக்கு ஒருமுறை", pipe_idle:"கண்டறிதல் ஓய்வில்", cam_ready:"கேமரா தயாராக உள்ளது — கண்டறிதலைத் தொடங்கு அழுத்தவும்", cam_error:"கேமரா கிடைக்கவில்லை",
+    up_noaction:"இந்த புகைப்படத்திற்கு பொறி இயங்காது.", up_warn:"⚠ வரம்புக்கு மேல் தீங்கு பூச்சி — நேரடி ஊட்டத்தில் பொறி இயங்கும்.",
+    act:"⚡ செயல்பட்டது", confidence:"நம்பிக்கை {c}%", cap_done:"நேரடி கேமராவில் இருந்து பிடிக்கப்பட்டது.",
+    camera_open_failed:"கேமராவைத் திறக்க முடியவில்லை: {error}", capture_failed:"கேமரா படத்தைப் பிடிக்க முடியவில்லை: {error}",
+    upload_failed:"புகைப்படத்தை பகுப்பாய்வு செய்ய முடியவில்லை: {error}", subject_rejected:"புகைப்படம் பகுப்பாய்வு செய்யப்படவில்லை",
+    subject_human:"இது ஒரு நபர் அல்லது கையின் படம் போல் தெரிகிறது. தெளிவான பூச்சி அல்லது மனிதரல்லாத விலங்கு புகைப்படத்தை பயன்படுத்தவும்.",
+    subject_object:"இது ஒரு பொருள் அல்லது பின்னணி போல் தெரிகிறது. தெளிவான பூச்சி அல்லது மனிதரல்லாத விலங்கு புகைப்படத்தை பயன்படுத்தவும்.",
+    subject_unknown:"படத்தின் பொருள் தெளிவாக இல்லை. தெளிவான பூச்சி அல்லது மனிதரல்லாத விலங்கு புகைப்படத்தை பயன்படுத்தவும்.",
+    try_again:"மீண்டும் முயற்சிக்கவும்! பூச்சியின் சரியான புகைப்படத்தை பிடிக்கவும்.",
+    del:"நீக்கு", del_confirm:"உறுதியா?", deleted:"கண்டறிதல் நீக்கப்பட்டது", delete_failed:"நீக்கம் தோல்வியடைந்தது",
+    clear_all:"அனைத்தையும் நீக்கு", clear_confirm:"உறுதியா?", cleared:"அனைத்து கண்டறிதல்களும் நீக்கப்பட்டன",
+    clear_sel:"தேர்ந்தவற்றை நீக்கு ({n})", cleared_sel:"{n} கண்டறிதல்கள் நீக்கப்பட்டன",
+    cam_idle:"கேமரா ஓய்வில் — முன்னோட்டத்திற்கு “கேமராவைத் திற” அழுத்தவும்"
+  }
+};
+let LANG = localStorage.getItem("pest-lang") || "en";
+function t(key, vars) {
+  let s = (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
+  if (vars) for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
+  return s;
+}
+
+/* ---- delete confirmation state (armed = waiting for 2nd click) ---- */
+const pendingDelete = new Map();   // row id -> timeout handle
+let clearPending = null;           // timeout handle for clear-all
+let clearSelPending = null;        // timeout handle for clear-selected
+const selectedIds = new Set();     // row ids ticked in the table
+function resetConfirms() {
+  for (const to of pendingDelete.values()) clearTimeout(to);
+  pendingDelete.clear();
+  if (clearPending) { clearTimeout(clearPending); clearPending = null; }
+  if (clearSelPending) { clearTimeout(clearSelPending); clearSelPending = null; }
+  const cb = document.getElementById("btn-clear");
+  cb.classList.remove("confirm"); cb.textContent = t("clear_all");
+  const sb = document.getElementById("btn-clear-sel");
+  sb.classList.remove("confirm"); sb.textContent = t("clear_sel", { n: selectedIds.size });
+}
+
+function applyLang(lang) {
+  LANG = lang;
+  localStorage.setItem("pest-lang", lang);
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll(".langbtn").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+  resetConfirms();
+  refreshPipe(); refresh();
+}
+document.querySelectorAll(".langbtn").forEach(b => b.addEventListener("click", () => applyLang(b.dataset.lang)));
+
+function fmtTime(ts) { if (!ts) return "—"; return ts.replace("T", " ").split(".")[0] + " UTC"; }
+function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+
+/* ---- toasts ---- */
+function toast(msg, kind) {
+  const box = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + (kind || "");
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 320); }, 2600);
+}
+
+/* ---- animated stat counters ---- */
+const statPrev = {};
+function setStat(id, val) {
+  const el = document.getElementById(id);
+  val = Number(val) || 0;
+  const from = statPrev[id] === undefined ? 0 : statPrev[id];
+  statPrev[id] = val;
+  if (from === val) { el.textContent = val; return; }
+  const start = performance.now(), dur = 650;
+  (function step(now) {
+    const p = Math.min(1, (now - start) / dur);
+    el.textContent = Math.round(from + (val - from) * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(step);
+  })(start);
+}
+
+/* ---- live cam + pipeline control ---- */
+const SRC_KEY = { webcam: "src_webcam", picam: "src_picam", demo: "src_demo" };
+function errorDetail(body, response) {
+  return (body && typeof body.detail === "string" && body.detail)
+    || response.statusText || t("cam_error");
+}
+async function responseDetail(response) {
+  return errorDetail(await response.json().catch(() => null), response);
+}
+async function refreshPipe() {
+  try {
+    const p = await fetch("/api/pipeline/status").then(r => r.json());
+    const running = p.running;
+    const cameraRunning = p.camera_running;
+    const sourceKey = p.camera === "demo" && p.camera_fell_back
+      ? "src_demo_fallback" : SRC_KEY[p.camera] || "src_none";
+    document.getElementById("cam-src").textContent = t(sourceKey);
+    document.getElementById("btn-open-cam").disabled = cameraRunning;
+    document.getElementById("btn-capture").disabled = !cameraRunning;
+    document.getElementById("btn-start").disabled = running;
+    document.getElementById("btn-stop").disabled = !cameraRunning;
+    document.getElementById("pipe-status").textContent = running
+      ? t("pipe_running", { s: p.interval_seconds })
+      : cameraRunning ? t("cam_ready") : p.camera_error ? t("cam_error") : t("pipe_idle");
+    document.getElementById("camwrap").classList.toggle("scan", running);
+
+    const cam = document.getElementById("cam");
+    const idle = document.getElementById("camidle");
+    const chip = document.getElementById("camchip");
+    if (cameraRunning) {
+      if (cam.getAttribute("src") !== "/api/stream") cam.src = "/api/stream";
+      cam.style.display = ""; idle.style.display = "none"; chip.style.display = "";
+    } else {
+      cam.removeAttribute("src");
+      cam.style.display = "none"; idle.style.display = ""; chip.style.display = "none";
+    }
+  } catch (e) {}
+}
+document.getElementById("btn-open-cam").onclick = async () => {
+  const btn = document.getElementById("btn-open-cam");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/camera/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "webcam" })
+    });
+    if (!r.ok) throw new Error(await responseDetail(r));
+    await refreshPipe();
+    setTimeout(refreshPipe, 600);
+  } catch (e) {
+    toast(t("camera_open_failed", { error: e.message || t("cam_error") }), "err");
+  } finally {
+    refreshPipe();
+  }
+};
+document.getElementById("btn-capture").onclick = async () => {
+  const btn = document.getElementById("btn-capture");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/capture", { method: "POST" });
+    const body = await r.json().catch(() => null);
+    if (!r.ok) {
+      if (r.status === 422 && body && typeof body.detail === "object") {
+        renderRejection(body.detail);
+        return;
+      }
+      throw new Error(errorDetail(body, r));
+    }
+    renderAnalysis(body, t("cap_done"));
+    await refresh();
+  } catch (e) {
+    toast(t("capture_failed", { error: e.message || t("cam_error") }), "err");
+  } finally {
+    refreshPipe();
+  }
+};
+document.getElementById("btn-start").onclick = async () => {
+  const btn = document.getElementById("btn-start");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/pipeline/start", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+    });
+    if (!r.ok) throw new Error(await responseDetail(r));
+    await refreshPipe();
+    setTimeout(refreshPipe, 600);
+  } catch (e) {
+    toast(t("camera_open_failed", { error: e.message || t("cam_error") }), "err");
+  } finally {
+    refreshPipe();
+  }
+};
+document.getElementById("btn-stop").onclick = async () => {
+  await fetch("/api/pipeline/stop", { method: "POST" });
+  refreshPipe();
+};
+
+/* ---- upload ---- */
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("file");
+drop.onclick = () => fileInput.click();
+["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
+fileInput.onchange = () => { if (fileInput.files.length) upload(fileInput.files[0]); };
+
+async function upload(file) {
+  const note = document.getElementById("up-note");
+  note.className = "upnote"; note.textContent = "…";
+  document.getElementById("upresult").classList.add("show");
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const r = await fetch("/api/classify", { method: "POST", body: fd });
+    const body = await r.json().catch(() => null);
+    if (!r.ok) {
+      if (r.status === 422 && body && typeof body.detail === "object") {
+        renderRejection(body.detail);
+        return;
+      }
+      note.className = "upnote warn";
+      note.textContent = t("upload_failed", { error: errorDetail(body, r) });
+      return;
+    }
+    renderAnalysis(body, null);
+    await refresh();
+  } catch (e) {
+    note.className = "upnote warn";
+    note.textContent = t("upload_failed", { error: e.message || t("cam_error") });
+  }
+}
+
+function renderRejection(detail) {
+  const subject = ["human", "object"].includes(detail.subject) ? detail.subject : "unknown";
+  document.getElementById("upresult").classList.add("show");
+  const img = document.getElementById("up-img");
+  img.removeAttribute("src"); img.style.display = "none";
+  document.getElementById("up-label").textContent = t("subject_rejected");
+  const b = document.getElementById("up-badge");
+  b.textContent = ""; b.className = "badge Harmless"; b.style.display = "none";
+  document.getElementById("up-conf").style.width = "0%";
+  document.getElementById("up-conf-text").textContent = "";
+  document.getElementById("up-top3").innerHTML = "";
+  const note = document.getElementById("up-note");
+  note.className = "upnote warn";
+  note.textContent = t("subject_" + subject);
+}
+
+function renderAnalysis(d, prefix) {
+  document.getElementById("upresult").classList.add("show");
+  const img = document.getElementById("up-img");
+  if (d.snapshot) {
+    img.src = "/snapshots/" + encodeURIComponent(d.snapshot) + "?t=" + Date.now();
+    img.style.display = "";
+  } else {
+    img.removeAttribute("src"); img.style.display = "none";
+  }
+  document.getElementById("up-label").textContent = d.label;
+  const b = document.getElementById("up-badge");
+  b.textContent = t("dist_" + d.category.toLowerCase()); b.className = "badge " + d.category; b.style.display = "";
+  document.getElementById("up-conf").style.width = Math.round(d.confidence * 100) + "%";
+  document.getElementById("up-conf-text").textContent = t("confidence", { c: (d.confidence * 100).toFixed(1) });
+  document.getElementById("up-top3").innerHTML = (d.top || []).map(x =>
+    "<code>" + esc(x[0]) + " " + (x[1] * 100).toFixed(1) + "%</code>").join("");
+  const note = document.getElementById("up-note");
+  note.className = "upnote" + (d.would_activate ? " warn" : "");
+  note.textContent = (prefix ? prefix + " " : "") + (d.would_activate ? t("up_warn") : t("up_noaction"));
+}
+
+/* ---- delete detections ---- */
+async function doDelete(id) {
+  try {
+    const r = await fetch("/api/detections/" + id, { method: "DELETE" });
+    if (!r.ok) { toast(t("delete_failed"), "err"); return; }
+    toast(t("deleted"), "ok");
+    refresh();
+  } catch (e) { toast(t("delete_failed"), "err"); }
+}
+document.getElementById("rows").addEventListener("click", e => {
+  const btn = e.target.closest("[data-del]");
+  if (!btn) return;
+  const id = btn.dataset.del;
+  if (pendingDelete.has(id)) {           // 2nd click: confirmed
+    clearTimeout(pendingDelete.get(id));
+    pendingDelete.delete(id);
+    doDelete(id);
+  } else {                               // 1st click: arm the confirm
+    btn.classList.add("confirm");
+    btn.textContent = t("del_confirm");
+    pendingDelete.set(id, setTimeout(() => { pendingDelete.delete(id); refresh(); }, 2500));
+  }
+});
+document.getElementById("btn-clear").onclick = () => {
+  const btn = document.getElementById("btn-clear");
+  if (clearPending) {                    // 2nd click: confirmed
+    clearTimeout(clearPending); clearPending = null;
+    btn.classList.remove("confirm"); btn.textContent = t("clear_all");
+    fetch("/api/detections", { method: "DELETE" })
+      .then(r => { if (!r.ok) throw 0; return r.json(); })
+      .then(() => { toast(t("cleared"), "ok"); refresh(); })
+      .catch(() => toast(t("delete_failed"), "err"));
+  } else {                               // 1st click: arm the confirm
+    btn.classList.add("confirm");
+    btn.textContent = t("clear_confirm");
+    clearPending = setTimeout(() => {
+      clearPending = null;
+      btn.classList.remove("confirm"); btn.textContent = t("clear_all");
+    }, 2500);
+  }
+};
+
+/* ---- selection + clear selected ---- */
+function updateSelUI() {
+  const btn = document.getElementById("btn-clear-sel");
+  btn.textContent = t("clear_sel", { n: selectedIds.size });
+  btn.disabled = selectedIds.size === 0;
+  if (selectedIds.size === 0 && clearSelPending) {
+    clearTimeout(clearSelPending); clearSelPending = null;
+    btn.classList.remove("confirm");
+  }
+  const boxes = [...document.querySelectorAll(".rowchk")];
+  const master = document.getElementById("chk-all");
+  master.checked = boxes.length > 0 && boxes.every(c => c.checked);
+  master.indeterminate = boxes.some(c => c.checked) && !master.checked;
+  master.style.visibility = boxes.length ? "visible" : "hidden";
+}
+document.getElementById("rows").addEventListener("change", e => {
+  const chk = e.target.closest(".rowchk");
+  if (!chk) return;
+  const id = Number(chk.dataset.id);
+  if (chk.checked) selectedIds.add(id); else selectedIds.delete(id);
+  chk.closest("tr").classList.toggle("sel", chk.checked);
+  updateSelUI();
+});
+document.getElementById("chk-all").addEventListener("change", e => {
+  const on = e.target.checked;
+  document.querySelectorAll(".rowchk").forEach(c => {
+    c.checked = on;
+    const id = Number(c.dataset.id);
+    if (on) selectedIds.add(id); else selectedIds.delete(id);
+    c.closest("tr").classList.toggle("sel", on);
+  });
+  updateSelUI();
+});
+document.getElementById("btn-clear-sel").onclick = () => {
+  if (!selectedIds.size) return;
+  const btn = document.getElementById("btn-clear-sel");
+  if (clearSelPending) {                    // 2nd click: confirmed
+    const ids = [...selectedIds];
+    clearTimeout(clearSelPending); clearSelPending = null;
+    btn.classList.remove("confirm");
+    fetch("/api/detections/delete-batch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids })
+    })
+      .then(r => { if (!r.ok) throw 0; return r.json(); })
+      .then(d => {
+        selectedIds.clear();
+        toast(t("cleared_sel", { n: d.removed }), "ok");
+        refresh();
+      })
+      .catch(() => toast(t("delete_failed"), "err"));
+  } else {                                   // 1st click: arm the confirm
+    btn.classList.add("confirm");
+    btn.textContent = t("clear_confirm");
+    clearSelPending = setTimeout(() => {
+      clearSelPending = null;
+      btn.classList.remove("confirm");
+      btn.textContent = t("clear_sel", { n: selectedIds.size });
+    }, 2500);
+  }
+};
+
+/* ---- main refresh ---- */
+const seenRows = new Set();
+function renderRows(rows) {
+  document.getElementById("empty").style.display = rows.length ? "none" : "";
+  let newIdx = 0;
+  document.getElementById("rows").innerHTML = rows.map(r => {
+    const isNew = !seenRows.has(r.id);
+    const delay = isNew ? ' style="animation-delay:' + (newIdx++ * 60) + 'ms"' : "";
+    const sel = selectedIds.has(r.id);
+    const srcBadge = r.source === "upload" ? '<span class="badge src">' + esc(t("src_upload")) + "</span>"
+                   : r.source === "capture" ? '<span class="badge src">' + esc(t("src_cam")) + "</span>" : "";
+    return `<tr class="${r.action_taken ? "acted" : ""}${sel ? " sel" : ""}${isNew ? " new" : ""}"${delay}>
+      <td><input type="checkbox" class="rowchk" data-id="${r.id}"${sel ? " checked" : ""} aria-label="Select row"></td>
+      <td>${r.snapshot ? '<img class="thumb" src="/snapshots/' + encodeURIComponent(r.snapshot) + '" alt="">' : ""}</td>
+      <td>${esc(fmtTime(r.timestamp))}</td>
+      <td>${esc(r.label)}${srcBadge}</td>
+      <td><span class="badge ${esc(r.category)}">${esc(t("dist_" + String(r.category).toLowerCase()))}</span></td>
+      <td>${(r.confidence * 100).toFixed(1)}%</td>
+      <td>${r.action_taken ? esc(t("act")) : "—"}</td>
+      <td><button class="delbtn" data-del="${r.id}" title="${esc(t("del"))}">&#128465;</button></td>
+    </tr>`;
+  }).join("");
+  rows.forEach(r => seenRows.add(r.id));
+}
+
+async function refresh() {
+  try {
+    const [stats, rows] = await Promise.all([
+      fetch("/api/stats").then(r => r.json()),
+      fetch("/api/detections?limit=12").then(r => r.json()),
+    ]);
+    document.getElementById("conn-dot").classList.remove("off");
+    document.getElementById("conn-text").textContent = t("conn_live");
+
+    setStat("stat-total", stats.total);
+    setStat("stat-harmful", stats.by_category.Harmful);
+    setStat("stat-beneficial", stats.by_category.Beneficial);
+    setStat("stat-activations", stats.trap_activations);
+
+    const bc = stats.by_category;
+    const total = Math.max(1, bc.Harmful + bc.Beneficial + bc.Harmless);
+    for (const cat of ["Harmful", "Beneficial", "Harmless"]) {
+      document.getElementById("bar-" + cat.toLowerCase()).style.width = (bc[cat] / total * 100) + "%";
+      document.getElementById("cnt-" + cat.toLowerCase()).textContent = bc[cat];
+    }
+
+    if (rows.length) {
+      const d = rows[0];
+      document.getElementById("hero-label").textContent = d.label;
+      const badge = document.getElementById("hero-badge");
+      badge.textContent = t("dist_" + d.category.toLowerCase()); badge.className = "badge " + d.category;
+      document.getElementById("hero-acted").style.display = d.action_taken ? "" : "none";
+      document.getElementById("hero-conf").style.width = Math.round(d.confidence * 100) + "%";
+      document.getElementById("hero-conf-text").textContent = t("confidence", { c: (d.confidence * 100).toFixed(1) });
+      document.getElementById("hero-time").textContent = fmtTime(d.timestamp);
+
+      const himg = document.getElementById("hero-img"), hph = document.getElementById("hero-ph");
+      if (d.snapshot) { himg.src = "/snapshots/" + encodeURIComponent(d.snapshot);
+                        himg.style.display = "block"; hph.style.display = "none"; }
+      else { himg.style.display = "none"; hph.style.display = ""; }
+
+      document.getElementById("hero-top3").innerHTML = (d.top || []).map(x =>
+        "<code>" + esc(x[0]) + " " + (x[1] * 100).toFixed(1) + "%</code>").join("");
+    } else {
+      const himg = document.getElementById("hero-img"), hph = document.getElementById("hero-ph");
+      himg.style.display = "none"; hph.style.display = "";
+      document.getElementById("hero-label").textContent = "—";
+    }
+
+    // Keep the selection limited to rows currently in view.
+    const visible = new Set(rows.map(r => r.id));
+    for (const id of [...selectedIds]) if (!visible.has(id)) selectedIds.delete(id);
+
+    if (!pendingDelete.size && !clearPending && !clearSelPending) renderRows(rows);
+    updateSelUI();
+  } catch (e) {
+    document.getElementById("conn-dot").classList.add("off");
+    document.getElementById("conn-text").textContent = t("conn_off");
+  }
+}
+
+/* ---- chat assistant ---- */
+const chatWin = document.getElementById("chat-win");
+const chatMsgs = document.getElementById("chat-msgs");
+const chatIn = document.getElementById("chat-in");
+let chatOpened = false;
+function addMsg(text, who) {
+  const el = document.createElement("div");
+  el.className = "msg " + who; el.textContent = text;
+  chatMsgs.appendChild(el); chatMsgs.scrollTop = chatMsgs.scrollHeight; return el;
+}
+async function sendChat(text) {
+  if (!text.trim()) return;
+  addMsg(text, "user");
+  const thinking = addMsg("…", "bot");
+  try {
+    const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, lang: LANG }) });
+    const d = await r.json();
+    thinking.textContent = d.reply || "…";
+  } catch (e) { thinking.textContent = "…"; }
+  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+}
+document.getElementById("chat-fab").onclick = () => { chatWin.classList.add("open"); chatIn.focus(); };
+document.getElementById("chat-close").onclick = () => chatWin.classList.remove("open");
+document.getElementById("chat-send").onclick = () => { sendChat(chatIn.value); chatIn.value = ""; };
+chatIn.addEventListener("keydown", e => { if (e.key === "Enter") { sendChat(chatIn.value); chatIn.value = ""; } });
+document.querySelectorAll("#chat-chips button").forEach(b => b.addEventListener("click", () => sendChat(b.dataset.q)));
+
+applyLang(LANG);
+setInterval(refresh, 2000);
+setInterval(refreshPipe, 2000);
+</script>
+</body>
+</html>
